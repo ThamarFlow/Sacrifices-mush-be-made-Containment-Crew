@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sacrifices Must Be Made</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+    <link rel="preload" href="styles.css" as="style">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div id="app">
+    <!-- Party HUD - visible across scenes -->
+    <div id="partyHUD" aria-live="polite"></div>
+
+    <!-- Intro (Level 0) -->
+    <section id="scene-intro" class="scene">
+      <div class="oldman-row">
+        <div class="oldman">🧓</div>
+        <div class="oldman-text">
+          <h2>Old Man</h2>
+          <p id="oldmanAdvice">"Paths are easy to see, but trust is what reveals what hides beneath."</p>
+        </div>
+      </div>
+
+      <div class="narration">
+        <p id="narrationText">Long ago, three travellers travelled together...</p>
+        <button id="startBtn" class="btn">Start</button>
+      </div>
+
+      <div class="party-preview" id="introPartyPreview"></div>
+      <div class="hint">Narration plays automatically. Click Start to go to the river.</div>
+    </section>
+
+    <!-- Level 1: River -->
+    <section id="scene-level1" class="scene hidden">
+      <h2>Level 1 — The River</h2>
+      <div class="instructions">Hold mouse or press <kbd>Space</kbd> to row. Avoid obstacles. Reach the right edge to continue.</div>
+      <div id="riverArea" class="river-area" tabindex="0">
+        <div id="boat" class="boat">🛶</div>
+        <!-- Obstacles appended here by JS -->
+      </div>
+      <div class="statusBar">
+        <div>Rowing: <span id="isRowing">no</span></div>
+        <div>Distance: <span id="distance">0</span></div>
+      </div>
+    </section>
+
+    <!-- Level 2: Fork -->
+    <section id="scene-level2" class="scene hidden">
+      <h2>Level 2 — The Fork</h2>
+      <p id="oldmanAdvice2">The old man says: "Choose the normal path, or the beautiful one. Beauty is costly."</p>
+      <div id="timer" class="timer">Time left: <span id="timerVal">10</span>s</div>
+
+      <div class="choices">
+        <button id="btnNormal" class="btn choice">Normal</button>
+        <button id="btnBeautiful" class="btn choice">Beautiful</button>
+      </div>
+      <div id="forkResult" class="fork-result"></div>
+    </section>
+
+    <!-- Level 3: Small puzzle (no sacrifice) -->
+    <section id="scene-level3" class="scene hidden">
+      <h2>Level 3 — The Crossing Puzzle</h2>
+      <p class="instructions">A small test of cooperation. Solve to keep morale high (no sacrifice here).</p>
+
+      <div id="level3Area" class="level3-area">
+        <div id="level3Message" class="level3-message">Press Start to begin the puzzle.</div>
+        <div id="level3Tiles" class="tiles"></div>
+        <div class="level3-controls">
+          <button id="level3StartBtn" class="btn">Start Puzzle</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Level 4: Toxic Air & Masks -->
+    <section id="scene-level4" class="scene hidden">
+      <h2>Level 4 — Toxic Air / Masks</h2>
+      <p id="level4Intro">The air is poisoned. Masks found: <span id="maskCount">0</span>. The old man always takes one mask.</p>
+
+      <div id="masksVisual" class="masks-visual"></div>
+
+      <div id="maskAllocationArea" class="mask-allocation hidden">
+        <p>Select who to give masks to (you can allocate up to <span id="maxMasks">0</span>):</p>
+        <div id="maskPlayersList" class="mask-players"></div>
+        <div class="mask-controls">
+          <button id="confirmAllocationBtn" class="btn">Confirm Allocation</button>
+          <button id="autoSacrificeBtn" class="btn">Auto-Sacrifice Now</button>
+          <div id="allocationTimer" class="timer">Auto action in <span id="allocationCountdown">15</span>s</div>
+        </div>
+      </div>
+
+      <div id="maskResult" class="fork-result"></div>
+    </section>
+
+    <div id="debug" class="debug"></div>
+  </div>
+  <!-- Scene for zombies -->
+<div id="scene-level5" class="hidden">
+  <div id="zombieArea"></div>
+  <div id="zombieHUD"></div>
+  <div id="zombieMessage"></div>
+  <button id="startLevel5Btn">Start Level 5</button>
+</div>
+
+<!-- Scene for final chamber -->
+<div id="scene-level6" class="hidden">
+  <div id="finalPuzzleArea"></div>
+  <div id="puzzleMessage"></div>
+  <button id="startFinalBtn">Start Final Puzzle</button>
+</div>
+
+<!-- Common HUD / debug -->
+<div id="partyHUD"></div>
+<div id="debug"></div>
+
+  <script src="game.js"></script>
+</body>
+</html>

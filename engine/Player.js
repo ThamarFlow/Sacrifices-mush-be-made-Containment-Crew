@@ -1,0 +1,517 @@
+export class Player {
+    constructor(config) {
+        // Handle both old (id, x, y, color) and new (config object) constructor patterns
+        if (typeof config === 'string') {
+            // Old pattern: constructor(id, x, y, color)
+            this.id = config;
+            this.x = arguments[1] || 0;
+            this.y = arguments[2] || 0;
+            this.color = arguments[3] || '#00ff00';
+            this.name = this.id;
+            this.isLocal = false;
+        } else {
+            // New pattern: constructor(config)
+            this.id = config.id;
+            this.x = config.x || 0;
+            this.y = config.y || 0;
+            this.color = config.color || '#00ff00';
+            this.name = config.name || config.id;
+            this.isLocal = config.isLocal || false;
+        }
+        
+        // Network manager reference (will be set by GameEngine)
+        this.networkManager = null;
+        
+        // Player properties
+        this.width = 32;
+        this.height = 32;
+        this.health = 100;
+        this.maxHealth = 100;
+        this.isAlive = true;
+        
+        // Character attributes (will be set by CharacterManager)
+        this.characterType = 'scout'; // default
+        this.strength = 2; // 1-3 (damage per hit)
+        this.baseSpeed = 200; // base movement speed
+        this.characterAbilities = {};
+        
+        // Movement properties
+        this.speed = this.baseSpeed;
+        this.velocityX = 0;
+        this.velocityY = 0;
+        
+        // Dash mechanics
+        this.dashCooldown = 0;
+        this.dashCooldownMax = 3.0; // 3 seconds
+        this.dashDistance = 150;
+        this.dashDuration = 0.2; // 0.2 seconds
+        this.isDashing = false;
+        this.dashTime = 0;
+        
+        // Animation state
+        this.direction = 'down'; // down, up, left, right
+        this.isMoving = false;
+        this.animationTime = 0;
+        this.lastDirection = 'down';
+        
+        // Sprite properties
+        this.spriteScale = 1;
+        this.spriteBaseName = `player_${this.id}`;
+        
+        // Collision bounds
+        this.collisionPadding = 4; // Smaller collision box than sprite
+        
+        // Developer settings properties
+        this.isInvincible = false;
+        this.speedMultiplier = 1.0;
+        
+        // Network validation
+        this.networkManager = null;
+        this.lastNetworkUpdate = 0;
+        this.networkUpdateInterval = 50; // Send updates every 50ms
+    }
+    
+    // Set network manager for sending validated actions
+    setNetworkManager(networkManager) {
+        this.networkManager = networkManager;
+    }
+    
+    // Send movement action to server with validation
+    sendMovementAction() {
+        if (!this.networkManager || !this.networkManager.isConnected) {
+            return;
+        }
+        
+        const now = Date.now();
+        if (now - this.lastNetworkUpdate < this.networkUpdateInterval) {
+            return; // Rate limiting
+        }
+        
+        const action = {
+            type: 'move',
+            x: this.x,
+            y: this.y,
+            direction: this.direction,
+            isMoving: this.isMoving,
+            isDashing: this.isDashing
+        };
+        
+        if (this.networkManager.sendValidatedPlayerAction) {
+            this.networkManager.sendValidatedPlayerAction(action);
+        } else {
+            this.networkManager.sendPlayerAction(action);
+        }
+        
+        this.lastNetworkUpdate = now;
+    }
+    
+    // Send attack action to server with validation
+    sendAttackAction(targetId = null) {
+        if (!this.networkManager || !this.networkManager.isConnected) {
+            return;
+        }
+        
+        const action = {
+            type: 'attack',
+            x: this.x,
+            y: this.y,
+            direction: this.direction,
+            targetId: targetId,
+            damage: this.strength
+        };
+        
+        if (this.networkManager.sendValidatedPlayerAction) {
+            return this.networkManager.sendValidatedPlayerAction(action);
+        } else {
+            this.networkManager.sendPlayerAction(action);
+            return true;
+        }
+    }
+    
+    // Send dash action to server with validation
+    sendDashAction(distance) {
+        if (!this.networkManager || !this.networkManager.isConnected) {
+            return;
+        }
+        
+        const action = {
+            type: 'dash',
+            x: this.x,
+            y: this.y,
+            direction: this.direction,
+            distance: distance
+        };
+        
+        if (this.networkManager.sendValidatedPlayerAction) {
+            return this.networkManager.sendValidatedPlayerAction(action);
+        } else {
+            this.networkManager.sendPlayerAction(action);
+            return true;
+        }
+    }
+    
+    update(deltaTime, keys, canvasWidth, canvasHeight) {
+        this.updateCooldowns(deltaTime);
+        this.handleInput(keys);
+        this.updateMovement(deltaTime);
+        this.checkBoundaries(canvasWidth, canvasHeight);
+        this.updateAnimation(deltaTime);
+    }
+    
+    updateCooldowns(deltaTime) {
+        // Update dash cooldown
+        if (this.dashCooldown > 0) {
+            this.dashCooldown -= deltaTime;
+        }
+        
+        // Update dash duration
+        if (this.isDashing) {
+            this.dashTime -= deltaTime;
+            if (this.dashTime <= 0) {
+                this.isDashing = false;
+                this.speed = this.baseSpeed; // Reset to normal speed
+            }
+        }
+    }
+    
+    handleInput(keys) {
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.isMoving = false;
+        
+        // Handle dash input (Shift key)
+        if (keys['ShiftLeft'] || keys['ShiftRight']) {
+            this.tryDash();
+        }
+        
+        // Calculate effective speed with multiplier
+        const effectiveSpeed = this.speed * this.speedMultiplier;
+        
+        // WASD movement
+        if (keys['KeyW'] || keys['ArrowUp']) {
+            this.velocityY = -effectiveSpeed;
+            this.direction = 'up';
+            this.isMoving = true;
+        }
+        if (keys['KeyS'] || keys['ArrowDown']) {
+            this.velocityY = effectiveSpeed;
+            this.direction = 'down';
+            this.isMoving = true;
+        }
+        if (keys['KeyA'] || keys['ArrowLeft']) {
+            this.velocityX = -effectiveSpeed;
+            this.direction = 'left';
+            this.isMoving = true;
+        }
+        if (keys['KeyD'] || keys['ArrowRight']) {
+            this.velocityX = effectiveSpeed;
+            this.direction = 'right';
+            this.isMoving = true;
+        }
+        
+        // Normalize diagonal movement
+        if (this.velocityX !== 0 && this.velocityY !== 0) {
+            const normalizer = Math.sqrt(2) / 2;
+            this.velocityX *= normalizer;
+            this.velocityY *= normalizer;
+        }
+    }
+    
+    tryDash() {
+        if (!this.isAlive || this.isDashing || this.dashCooldown > 0) return false;
+        
+        // Start dash
+        this.isDashing = true;
+        this.dashTime = this.dashDuration;
+        this.dashCooldown = this.dashCooldownMax;
+        
+        // Increase speed dramatically during dash
+        this.speed = this.baseSpeed * 4; // 4x speed during dash
+        
+        console.log(`Player ${this.id} dashed!`);
+        return true;
+    }
+    
+    updateMovement(deltaTime) {
+        if (!this.isAlive) return;
+        
+        // Update position with pixel-perfect movement
+        this.x += this.velocityX * deltaTime;
+        this.y += this.velocityY * deltaTime;
+        
+        // Round to nearest pixel for crisp rendering
+        this.x = Math.round(this.x);
+        this.y = Math.round(this.y);
+    }
+    
+    checkBoundaries(canvasWidth, canvasHeight) {
+        // Keep player within canvas bounds
+        const padding = this.collisionPadding;
+        
+        if (this.x < padding) {
+            this.x = padding;
+        }
+        if (this.x > canvasWidth - this.width + padding) {
+            this.x = canvasWidth - this.width + padding;
+        }
+        if (this.y < padding) {
+            this.y = padding;
+        }
+        if (this.y > canvasHeight - this.height + padding) {
+            this.y = canvasHeight - this.height + padding;
+        }
+    }
+    
+    updateAnimation(deltaTime) {
+        // Update animation timer
+        this.animationTime += deltaTime;
+        
+        // Track direction changes
+        if (this.direction !== this.lastDirection) {
+            this.animationTime = 0; // Reset animation when direction changes
+            this.lastDirection = this.direction;
+        }
+    }
+    
+    render(ctx, spriteRenderer = null) {
+        if (spriteRenderer) {
+            // Use sprite rendering
+            const spriteName = `${this.spriteBaseName}_${this.direction}`;
+            if (this.isAlive) {
+                spriteRenderer.drawSprite(spriteName, this.x, this.y, this.spriteScale);
+            } else {
+                // Render dead player with different visual
+                this.renderDeadPlayer(ctx, spriteRenderer);
+            }
+        } else {
+            // Fallback to simple rectangle rendering
+            this.renderSimple(ctx);
+        }
+        
+        // Draw player name/ID (simplified since HUD handles health bars)
+        this.renderPlayerInfo(ctx);
+    }
+    
+    renderDeadPlayer(ctx, spriteRenderer) {
+        // Render dead player as a darker, semi-transparent version
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        
+        // Draw a tombstone or skull symbol
+        ctx.fillStyle = '#666666';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        
+        // Draw X or skull symbol
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(this.x + 5, this.y + 5);
+        ctx.lineTo(this.x + this.width - 5, this.y + this.height - 5);
+        ctx.moveTo(this.x + this.width - 5, this.y + 5);
+        ctx.lineTo(this.x + 5, this.y + this.height - 5);
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+    
+    renderSimple(ctx) {
+        // Draw player as a colored rectangle with direction indicator
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        
+        // Draw direction indicator
+        ctx.fillStyle = '#ffffff';
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+        
+        switch (this.direction) {
+            case 'up':
+                ctx.fillRect(centerX - 2, this.y + 4, 4, 8);
+                break;
+            case 'down':
+                ctx.fillRect(centerX - 2, this.y + this.height - 12, 4, 8);
+                break;
+            case 'left':
+                ctx.fillRect(this.x + 4, centerY - 2, 8, 4);
+                break;
+            case 'right':
+                ctx.fillRect(this.x + this.width - 12, centerY - 2, 8, 4);
+                break;
+        }
+        
+        // Add border
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+    }
+    
+    renderHealthBar(ctx) {
+        const barWidth = this.width;
+        const barHeight = 4;
+        const barX = this.x;
+        const barY = this.y - 8;
+        
+        // Background
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Health
+        const healthPercent = this.health / this.maxHealth;
+        ctx.fillStyle = '#00ff00';
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        
+        // Border
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+    }
+    
+    renderPlayerInfo(ctx) {
+        // Draw player ID above player
+        ctx.fillStyle = this.isAlive ? '#ffffff' : '#ff6666';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        
+        const textX = this.x + this.width / 2;
+        const textY = this.y - 5;
+        
+        const displayText = this.isAlive ? this.id : `${this.id} (DEAD)`;
+        ctx.fillText(displayText, textX, textY);
+        
+        // Draw dash cooldown indicator
+        if (this.dashCooldown > 0) {
+            const cooldownPercent = this.dashCooldown / this.dashCooldownMax;
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.7)';
+            ctx.fillRect(this.x, this.y - 25, this.width * (1 - cooldownPercent), 3);
+            
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(this.x, this.y - 25, this.width, 3);
+        }
+        
+        // Draw dash effect
+        if (this.isDashing) {
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(this.x - 5, this.y - 5, this.width + 10, this.height + 10);
+            ctx.restore();
+        }
+        
+        // Reset text alignment
+        ctx.textAlign = 'left';
+    }
+    
+    takeDamage(amount) {
+        if (!this.isAlive) return;
+        
+        // Check for invincibility (developer setting)
+        if (this.isInvincible) return;
+        
+        this.health -= amount;
+        if (this.health <= 0) {
+            this.health = 0;
+            this.die();
+        }
+    }
+    
+    die() {
+        if (!this.isAlive) return;
+        
+        this.isAlive = false;
+        this.deathTime = Date.now();
+        
+        // Stop all movement
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.isMoving = false;
+        
+        console.log(`Player ${this.id} has died permanently - no respawn!`);
+    }
+    
+    revive() {
+        // This method exists but should NOT be used in this game
+        // Players who die stay dead permanently
+        console.warn(`Attempted to revive player ${this.id} - this should not happen in Sacrifices Must Be Made!`);
+    }
+    
+    heal(amount) {
+        if (!this.isAlive) return;
+        
+        this.health += amount;
+        if (this.health > this.maxHealth) {
+            this.health = this.maxHealth;
+        }
+    }
+    
+    // Collision detection helpers
+    getCollisionBounds() {
+        return {
+            x: this.x + this.collisionPadding,
+            y: this.y + this.collisionPadding,
+            width: this.width - (this.collisionPadding * 2),
+            height: this.height - (this.collisionPadding * 2)
+        };
+    }
+    
+    isCollidingWith(other) {
+        const thisBounds = this.getCollisionBounds();
+        const otherBounds = other.getCollisionBounds ? other.getCollisionBounds() : other;
+        
+        return thisBounds.x < otherBounds.x + otherBounds.width &&
+               thisBounds.x + thisBounds.width > otherBounds.x &&
+               thisBounds.y < otherBounds.y + otherBounds.height &&
+               thisBounds.y + thisBounds.height > otherBounds.y;
+    }
+
+    // Network methods
+    setNetworkManager(networkManager) {
+        this.networkManager = networkManager;
+    }
+
+    sendMovementAction() {
+        if (!this.networkManager || !this.isLocal) return;
+        
+        const action = {
+            type: 'move',
+            x: this.x,
+            y: this.y,
+            vx: this.velocityX,
+            vy: this.velocityY,
+            direction: this.direction,
+            isMoving: this.isMoving,
+            timestamp: Date.now()
+        };
+        
+        this.networkManager.sendPlayerAction(action);
+    }
+
+    sendAttackAction(targetId = null) {
+        if (!this.networkManager || !this.isLocal) return;
+        
+        const action = {
+            type: 'attack',
+            x: this.x,
+            y: this.y,
+            direction: this.direction,
+            targetId: targetId,
+            damage: this.strength
+        };
+        
+        this.networkManager.sendPlayerAction(action);
+    }
+
+    sendDashAction() {
+        if (!this.networkManager || !this.isLocal) return;
+        
+        const action = {
+            type: 'dash',
+            x: this.x,
+            y: this.y,
+            direction: this.direction,
+            distance: this.dashDistance
+        };
+        
+        this.networkManager.sendPlayerAction(action);
+    }
+}
