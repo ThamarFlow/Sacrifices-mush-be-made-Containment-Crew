@@ -32,3 +32,13 @@ export default class LevelManager {
   saveState(){ localStorage.setItem('gameState', JSON.stringify({currentLevel:this.currentLevel, playersAlive:this.playersAlive, masksCount:this.masksCount})); }
   loadState(){ const s = localStorage.getItem('gameState'); if(!s) return false; const obj = JSON.parse(s); this.currentLevel = obj.currentLevel; this.playersAlive = obj.playersAlive; this.masksCount = obj.masksCount; return true; }
 }
+startLevel(n) {
+  this.currentLevel = n;
+  SceneManager.showScene(n);
+  if (n === 1) Level1.start();
+  if (n === 2) Level2.start();
+  if (n === 3) Level3.start();
+  if (n === 5) Level5.start();
+  if (n === 6) Level6.start();
+}
+
