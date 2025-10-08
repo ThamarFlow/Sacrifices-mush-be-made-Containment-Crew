@@ -58,6 +58,95 @@ const LevelManager = {
   oldManSacrifice() {
     return this.killPlayerByName(this.oldManName);
   },
+// ====== Level 1: River / Boat ======
+const Level1 = (function(){
+  const area = document.getElementById('level1Area');
+  let obstacles = [];
+  let spawnInterval = 1200; // ms between obstacles
+  let lastSpawnTime = 0;
+  let playerSpeed = 100; // initial speed
+  let running = false;
+
+  function start(){
+    area.innerHTML = '';
+    obstacles = [];
+    lastSpawnTime = 0;
+    playerSpeed = 100;
+    running = true;
+    requestAnimationFrame(update);
+  }
+
+  function update(timestamp){
+    if(!running) return;
+
+    // spawn obstacles every spawnInterval
+    if(!lastSpawnTime) lastSpawnTime = timestamp;
+    if(timestamp - lastSpawnTime > spawnInterval){
+      spawnObstacle();
+      lastSpawnTime = timestamp;
+    }
+
+    // update obstacles (move them left or down)
+    obstacles.forEach(o=>{
+      o.style.left = (parseInt(o.style.left) - playerSpeed * 0.016) + 'px'; // dt ~16ms
+    });
+
+    // increase speed dynamically
+    playerSpeed += 400 * 0.016; // same as speed += 400*dt
+
+    requestAnimationFrame(update);
+  }
+
+  function spawnObstacle(){
+    const ob = document.createElement('div');
+    ob.className='obstacle';
+    ob.style.position='absolute';
+    ob.style.left = '800px'; // spawn right
+    ob.style.top = Math.random()*400 + 'px';
+    ob.innerText='♆';
+    area.appendChild(ob);
+    obstacles.push(ob);
+  }
+
+  return { start };
+})();
+// ====== Level 2: Fork Choice ======
+const Level2 = (function(){
+  const msg = document.getElementById('level2Message');
+  let countdown = 8; // reduced from 10
+  let timerId;
+
+  function start(){
+    msg && (msg.innerText = `Choose path in ${countdown} seconds`);
+    timerId = setInterval(()=>{
+      countdown--;
+      if(msg) msg.innerText = `Choose path in ${countdown} seconds`;
+      if(countdown <= 0){
+        clearInterval(timerId);
+        msg && (msg.innerText='Time up! Default path chosen.');
+        // handle default outcome
+      }
+    }, 1000);
+  }
+
+  return { start };
+})();
+// ====== Level 3: Puzzle ======
+const Level3 = (function(){
+  const area = document.getElementById('puzzleArea');
+  let timeoutId;
+
+  function start(){
+    area.innerHTML = '';
+    // create puzzle tiles here...
+    timeoutId = setTimeout(()=>{
+      console.log('Puzzle failed!'); // reduce from 12s → 10s
+      // handle fail logic
+    }, 10000); // 10 seconds
+  }
+
+  return { start };
+})();
 
   startLevel(n) {
     this.currentLevel = n;
@@ -193,3 +282,5 @@ const Level6 = (function(){
   LevelManager.init();
   SceneManager.showScene(5);
 })();
+
+
