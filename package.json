@@ -4,8 +4,8 @@
   "description": "",
   "main": "dialogueUI.js",
   "scripts": {
-    "test": "live-server"
-  },
+  "start": "live-server"
+},
   "keywords": [],
   "author": "",
   "license": "ISC"
