@@ -5,6 +5,8 @@
   "main": "dialogueUI.js",
   "scripts": {
   "start": "live-server"
+  "dev": "live-server --open=index.html --port=8080"
+  "build":"echo \"All set! No build needed — just open index.html in the browser\""
 },
   "keywords": [],
   "author": "",
